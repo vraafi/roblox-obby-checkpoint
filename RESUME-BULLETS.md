@@ -1,0 +1,1 @@
+['- Menulis modul Luau ObbyCheckpoint.lua berukuran 6111 B dengan data per pemain.', '- Menutup 0 temuan QC pada lapis kode dalam 0,23 detik pengujian.', '- Menyusun README.md 2758 B untuk aturan checkpoint berurutan dan anti-lompat.']
