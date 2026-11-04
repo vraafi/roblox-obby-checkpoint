@@ -1,0 +1,7 @@
+{
+  "checkpointTag": "Checkpoint",
+  "respawnDelay": 0.5,
+  "antiSkip": true,
+  "spawnOnJoin": true,
+  "resetOnDeath": true
+}

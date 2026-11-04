@@ -1,51 +1,65 @@
 --!strict
--- Obby Checkpoint System
--- ModuleScript returns table with .new(config)
+-- Obby Checkpoint module for Roblox
+-- Returns a table with .new(config) method
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 
-type Config = {
+export type Config = {
 	checkpointTag: string?,
 	respawnDelay: number?,
 	antiSkip: boolean?,
-	spawnPartName: string?,
-	debug: boolean?,
+	spawnOnJoin: boolean?,
+	resetOnDeath: boolean?,
 }
 
 type PlayerData = {
-	checkpointNumber: number,
-	spawnCFrame: CFrame?,
-	connections: {RBXScriptConnection},
+	checkpoint: BasePart?,
+	connection: RBXScriptConnection?,
 }
 
 local ObbyCheckpoint = {}
 ObbyCheckpoint.__index = ObbyCheckpoint
 
-local DEFAULT_CONFIG: Config = {
+local DEFAULTS = {
 	checkpointTag = "Checkpoint",
 	respawnDelay = 0.5,
 	antiSkip = true,
-	spawnPartName = "SpawnLocation",
-	debug = false,
+	spawnOnJoin = true,
+	resetOnDeath = true,
 }
 
-function ObbyCheckpoint.new(config: Config?)
+function ObbyCheckpoint.new(config: Config?): any
 	local self = setmetatable({}, ObbyCheckpoint)
-	self._config = table.clone(DEFAULT_CONFIG)
+	self._config = {}
+	for k, v in pairs(DEFAULTS) do
+		self._config[k] = v
+	end
 	if config then
 		for k, v in pairs(config) do
-			self._config[k] = v
+			if DEFAULTS[k] ~= nil then
+				self._config[k] = v
+			end
 		end
 	end
+
 	self._playerData = {}
 	self._connections = {}
-	self._destroyed = false
 
-	self:_setupPlayerAdded()
-	self:_setupCharacterAdded()
+	-- Setup checkpoint parts
+	self._checkpoints = {}
+	self:_collectCheckpoints()
 
-	-- Handle players already in game
+	-- Player joining
+	table.insert(self._connections, Players.PlayerAdded:Connect(function(player)
+		self:_onPlayerAdded(player)
+	end))
+
+	-- Player leaving
+	table.insert(self._connections, Players.PlayerRemoving:Connect(function(player)
+		self:_onPlayerRemoving(player)
+	end))
+
+	-- Existing players
 	for _, player in ipairs(Players:GetPlayers()) do
 		self:_onPlayerAdded(player)
 	end
@@ -53,172 +67,162 @@ function ObbyCheckpoint.new(config: Config?)
 	return self
 end
 
-function ObbyCheckpoint:_debugPrint(...)
-	if self._config.debug then
-		print("[ObbyCheckpoint]", ...)
+function ObbyCheckpoint:_collectCheckpoints()
+	self._checkpoints = {}
+	local workspace = game:GetService("Workspace")
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") and obj:GetAttribute(self._config.checkpointTag) then
+			local order = obj:GetAttribute("CheckpointOrder") or 0
+			table.insert(self._checkpoints, { part = obj, order = order })
+		end
 	end
-end
-
-function ObbyCheckpoint:_setupPlayerAdded()
-	table.insert(self._connections, Players.PlayerAdded:Connect(function(player)
-		self:_onPlayerAdded(player)
-	end))
-	table.insert(self._connections, Players.PlayerRemoving:Connect(function(player)
-		self:_onPlayerRemoving(player)
-	end))
-end
-
-function ObbyCheckpoint:_setupCharacterAdded()
-	-- CharacterAdded is handled per-player in _onPlayerAdded
+	table.sort(self._checkpoints, function(a, b)
+		return a.order < b.order
+	end)
 end
 
 function ObbyCheckpoint:_onPlayerAdded(player: Player)
-	if self._destroyed then return end
-	if self._playerData[player] then return end
-
-	local data: PlayerData = {
-		checkpointNumber = 0,
-		spawnCFrame = nil,
-		connections = {},
-	}
+	local data: PlayerData = { checkpoint = nil, connection = nil }
 	self._playerData[player] = data
 
-	local charConn = player.CharacterAdded:Connect(function(character)
+	-- Character added connection
+	data.connection = player.CharacterAdded:Connect(function(character)
 		self:_onCharacterAdded(player, character)
 	end)
-	table.insert(data.connections, charConn)
 
 	-- If character already exists
-	if player.Character then
-		self:_onCharacterAdded(player, player.Character)
+	local character = player.Character
+	if character then
+		self:_onCharacterAdded(player, character)
+	elseif self._config.spawnOnJoin then
+		task.defer(function()
+			if player.Parent then
+				player:LoadCharacter()
+			end
+		end)
 	end
-
-	self:_debugPrint("Player added:", player.Name)
 end
 
 function ObbyCheckpoint:_onPlayerRemoving(player: Player)
 	local data = self._playerData[player]
-	if not data then return end
-	for _, conn in ipairs(data.connections) do
-		conn:Disconnect()
+	if data then
+		if data.connection then
+			data.connection:Disconnect()
+			data.connection = nil
+		end
+		self._playerData[player] = nil
 	end
-	data.connections = {}
-	self._playerData[player] = nil
-	self:_debugPrint("Player removed:", player.Name)
 end
 
 function ObbyCheckpoint:_onCharacterAdded(player: Player, character: Model)
-	if self._destroyed then return end
 	local data = self._playerData[player]
 	if not data then return end
 
-	-- Wait for humanoid and root part
-	task.spawn(function()
-		local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
-		if not humanoid or self._destroyed then return end
-		local rootPart = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
-		if not rootPart or self._destroyed then return end
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid or not humanoid:IsA("Humanoid") then return end
 
-		-- Move player to saved checkpoint if any
-		if data.spawnCFrame then
-			rootPart.CFrame = data.spawnCFrame + Vector3.new(0, 3, 0)
+	-- Teleport to checkpoint if exists
+	if data.checkpoint and data.checkpoint.Parent then
+		local hrp = character:WaitForChild("HumanoidRootPart", 10)
+		if hrp and hrp:IsA("BasePart") then
+			hrp.CFrame = data.checkpoint.CFrame + Vector3.new(0, 5, 0)
 		end
+	end
 
-		humanoid.Died:Connect(function()
-			self:_onHumanoidDied(player)
+	-- Handle death reset
+	if self._config.resetOnDeath then
+		local deathConn: RBXScriptConnection? = nil
+		deathConn = humanoid.Died:Connect(function()
+			if deathConn then
+				deathConn:Disconnect()
+				deathConn = nil
+			end
+			if data.checkpoint then
+				local d = data.checkpoint
+				task.delay(self._config.respawnDelay, function()
+					if player.Parent and d and d.Parent then
+						local hrp2 = character:FindFirstChild("HumanoidRootPart")
+						if hrp2 and hrp2:IsA("BasePart") then
+							hrp2.CFrame = d.CFrame + Vector3.new(0, 5, 0)
+						end
+					end
+				end)
+			end
 		end)
-
-		-- Detect touching checkpoints
-		self:_setupCheckpointDetection(player, character)
-	end)
-end
-
-function ObbyCheckpoint:_setupCheckpointDetection(player: Player, character: Model)
-	local tag = self._config.checkpointTag
-	if not tag then return end
-
-	local rootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not rootPart then return end
-
-	local conn = rootPart.Touched:Connect(function(hit: BasePart)
-		self:_onTouched(player, hit)
-	end)
-	local data = self._playerData[player]
-	if data then
-		table.insert(data.connections, conn)
+		table.insert(self._connections, deathConn)
 	end
 end
 
-function ObbyCheckpoint:_onTouched(player: Player, hit: BasePart)
-	if self._destroyed then return end
+function ObbyCheckpoint:RegisterCheckpoint(part: BasePart)
+	if not part:IsA("BasePart") then return end
+	if not part:GetAttribute(self._config.checkpointTag) then return end
+
+	local order = part:GetAttribute("CheckpointOrder") or 0
+	table.insert(self._checkpoints, { part = part, order = order })
+	table.sort(self._checkpoints, function(a, b)
+		return a.order < b.order
+	end)
+
+	-- Connect touch event
+	local conn = part.Touched:Connect(function(hit)
+		self:_onCheckpointTouched(part, hit)
+	end)
+	table.insert(self._connections, conn)
+end
+
+function ObbyCheckpoint:_onCheckpointTouched(checkpointPart: BasePart, hit: BasePart)
+	local character = hit.Parent
+	if not character then return end
+	local player = Players:GetPlayerFromCharacter(character)
+	if not player then return end
+
 	local data = self._playerData[player]
 	if not data then return end
 
-	-- Check if hit part has checkpoint attribute or tag
-	local checkpointNum = hit:GetAttribute("CheckpointNumber")
-	if typeof(checkpointNum) ~= "number" then return end
-
-	-- Anti-skip: must be next checkpoint in sequence
+	-- Anti-skip: only allow next checkpoint or same
 	if self._config.antiSkip then
-		if checkpointNum ~= data.checkpointNumber + 1 then
-			self:_debugPrint(player.Name, "skipped checkpoint", checkpointNum, "expected", data.checkpointNumber + 1)
+		local currentOrder = 0
+		if data.checkpoint then
+			for _, cp in ipairs(self._checkpoints) do
+				if cp.part == data.checkpoint then
+					currentOrder = cp.order
+					break
+				end
+			end
+		end
+		local newOrder = 0
+		for _, cp in ipairs(self._checkpoints) do
+			if cp.part == checkpointPart then
+				newOrder = cp.order
+				break
+			end
+		end
+		if newOrder > currentOrder + 1 then
 			return
 		end
 	end
 
-	-- Only accept higher checkpoint numbers
-	if checkpointNum <= data.checkpointNumber then return end
-
-	data.checkpointNumber = checkpointNum
-	data.spawnCFrame = hit.CFrame
-	self:_debugPrint(player.Name, "reached checkpoint", checkpointNum)
-end
-
-function ObbyCheckpoint:_onHumanoidDied(player: Player)
-	if self._destroyed then return end
-	local data = self._playerData[player]
-	if not data then return end
-
-	task.wait(self._config.respawnDelay or 0.5)
-	if self._destroyed then return end
-
-	local character = player.Character
-	if not character then return end
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
-	humanoid:TakeDamage(0) -- no-op, just for safety
-end
-
-function ObbyCheckpoint:GetPlayerCheckpoint(player: Player): number
-	local data = self._playerData[player]
-	return data and data.checkpointNumber or 0
-end
-
-function ObbyCheckpoint:SetPlayerCheckpoint(player: Player, checkpointNumber: number)
-	local data = self._playerData[player]
-	if data then
-		data.checkpointNumber = checkpointNumber
-	end
+	-- Update checkpoint
+	data.checkpoint = checkpointPart
 end
 
 function ObbyCheckpoint:Destroy()
-	if self._destroyed then return end
-	self._destroyed = true
-
 	for _, conn in ipairs(self._connections) do
-		conn:Disconnect()
+		if conn and typeof(conn) == "RBXScriptConnection" then
+			conn:Disconnect()
+		end
 	end
 	self._connections = {}
 
-	for _, data in pairs(self._playerData) do
-		for _, conn in ipairs(data.connections) do
-			conn:Disconnect()
+	for player, data in pairs(self._playerData) do
+		if data.connection then
+			data.connection:Disconnect()
+			data.connection = nil
 		end
-		data.connections = {}
+		self._playerData[player] = nil
 	end
 	self._playerData = {}
-
-	self:_debugPrint("Destroyed")
+	self._checkpoints = {}
 end
 
 return ObbyCheckpoint

@@ -1,57 +1,49 @@
-# Obby Checkpoint System
+# Obby Checkpoint Module
 
-A Luau module for Roblox obby games that provides checkpoint and respawn functionality with anti-skip protection and per-player data, without memory leaks.
+Modul Luau untuk Roblox yang menyediakan sistem checkpoint dan respawn untuk obby. Mendukung checkpoint berurutan, anti-lompat, data per pemain, dan pembersihan koneksi yang benar.
 
-## Installation
+## Cara Pakai
 
-1. Place `ObbyCheckpoint.lua` as a ModuleScript in `ReplicatedStorage` (or `ServerScriptService`).
-2. Place `config.json` alongside it (optional, but recommended for configuration).
-3. In a server Script, require the module and create an instance:
+1. Letakkan `ObbyCheckpoint.lua` sebagai ModuleScript di `ReplicatedStorage` atau `ServerScriptService`.
+2. Buat Script server yang me-require modul dan menginisialisasinya.
+3. Tandai part checkpoint dengan attribute `Checkpoint` (atau sesuai config) dan `CheckpointOrder` (angka urutan).
+
+Contoh:
 
 ```lua
 local ObbyCheckpoint = require(game.ReplicatedStorage.ObbyCheckpoint)
-local checkpointSystem = ObbyCheckpoint.new({
-    checkpointTag = "Checkpoint",
-    respawnDelay = 0.5,
-    antiSkip = true,
-    debug = false,
-})
+local config = require(game.ReplicatedStorage.config)
 
--- Later, to clean up:
+local checkpointSystem = ObbyCheckpoint.new(config)
+
+-- Opsional: daftarkan checkpoint baru secara manual
+-- checkpointSystem:RegisterCheckpoint(part)
+
+-- Saat server shutdown atau modul tidak diperlukan:
 -- checkpointSystem:Destroy()
 ```
 
-## Checkpoint Setup
+## Pemasangan Checkpoint
 
-- Each checkpoint part must have a `NumberValue` attribute named `CheckpointNumber` (e.g., 1, 2, 3...).
-- The system detects when a player's HumanoidRootPart touches a part with this attribute.
-- Anti-skip ensures players must touch checkpoints in order (1, then 2, etc.).
-- When a player respawns, they are teleported to the last checkpoint they touched.
+- Setiap part checkpoint harus memiliki attribute `Checkpoint` (boolean true) dan `CheckpointOrder` (number, urutan).
+- Contoh: Part dengan attribute `Checkpoint = true`, `CheckpointOrder = 1`.
+- Respawn akan menempatkan pemain 5 stud di atas part checkpoint terakhir.
 
-## Configuration Parameters (config.json)
+## Konfigurasi
 
-- `checkpointTag` (string): Attribute name used to identify checkpoint number (default: "Checkpoint" — note: actual attribute read is "CheckpointNumber").
-- `respawnDelay` (number): Delay before respawn logic (default: 0.5).
-- `antiSkip` (boolean): Enforce sequential checkpoint order (default: true).
-- `spawnPartName` (string): Name of the initial spawn part (default: "SpawnLocation").
-- `debug` (boolean): Enable debug prints (default: false).
+File `config.json` berisi parameter yang dapat diubah:
 
-## API
+- `checkpointTag` (string): Nama attribute penanda checkpoint. Default: `"Checkpoint"`.
+- `respawnDelay` (number): Jeda respawn setelah mati (detik). Default: `0.5`.
+- `antiSkip` (boolean): Cegah pemain melompati checkpoint. Default: `true`.
+- `spawnOnJoin` (boolean): Paksa spawn karakter saat join. Default: `true`.
+- `resetOnDeath` (boolean): Respawn ke checkpoint saat mati. Default: `true`.
 
-- `ObbyCheckpoint.new(config)` — Creates a new checkpoint system instance.
-- `instance:GetPlayerCheckpoint(player)` — Returns the current checkpoint number for a player.
-- `instance:SetPlayerCheckpoint(player, number)` — Manually sets a player's checkpoint.
-- `instance:Destroy()` — Cleans up all connections and player data. Call this before removing the module.
+## Batasan
 
-## Limitations
-
-- Checkpoint detection uses `Touched` events, which may fire multiple times; only higher checkpoint numbers are accepted.
-- Anti-skip expects checkpoints numbered sequentially starting from 1.
-- The system does not automatically respawn players; it only teleports on character spawn.
-- No built-in UI or visual feedback.
-- The module assumes a standard Roblox character with Humanoid and HumanoidRootPart.
-- `config.json` is for reference; in Roblox you typically pass a Lua table to `.new()`.
-
-## Memory Leak Prevention
-
-All connections are stored per-player and in a central list. Calling `:Destroy()` disconnects everything and clears tables. PlayerRemoving also cleans up per-player connections.
+- Hanya mendukung checkpoint berbasis part dengan attribute.
+- Anti-lompat mengandalkan urutan `CheckpointOrder`; pastikan unik dan berurutan.
+- Tidak menangani kasus checkpoint dihapus saat runtime (perlu panggil `RegisterCheckpoint` ulang).
+- Modul ini tidak membuat GUI atau feedback visual.
+- Respawn delay menggunakan `task.delay`; pastikan tidak ada konflik dengan sistem respawn lain.
+- Untuk performa, hindari terlalu banyak checkpoint (ratusan) karena pengecekan linear.
