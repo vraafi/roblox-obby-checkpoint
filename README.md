@@ -1,49 +1,49 @@
-# Obby Checkpoint Module
+# Obby Checkpoint System
 
-Modul Luau untuk Roblox yang menyediakan sistem checkpoint dan respawn untuk obby. Mendukung checkpoint berurutan, anti-lompat, data per pemain, dan pembersihan koneksi yang benar.
+Modul Luau untuk Roblox yang mengelola sistem checkpoint berurutan pada game Obby. Dilengkapi dengan fitur anti-lompat (anti-skip), penanganan respawn otomatis, serta pengelolaan memori bebas dari memory leak.
 
-## Cara Pakai
+## Fitur
 
-1. Letakkan `ObbyCheckpoint.lua` sebagai ModuleScript di `ReplicatedStorage` atau `ServerScriptService`.
-2. Buat Script server yang me-require modul dan menginisialisasinya.
-3. Tandai part checkpoint dengan attribute `Checkpoint` (atau sesuai config) dan `CheckpointOrder` (angka urutan).
+- **Penyimpanan Berurutan**: Melacak posisi stage pemain saat ini.
+- **Anti-Skip**: Mencegah pemain melompati checkpoint jika `AntiSkip` diaktifkan.
+- **Bebas Memory Leak**: Semua event listeners (`Touched`, `PlayerAdded`, `PlayerRemoving`, `CharacterAdded`) diputus secara bersih saat pemain keluar atau modul dipanggil `:Destroy()`.
+- **Modular & Modern**: Ditulis menggunakan standar Luau modern (selene `std=roblox`).
 
-Contoh:
+## Struktur Folder di Roblox
+
+1. Simpan `ObbyCheckpoint.lua` sebagai `ModuleScript` di `ServerScriptService` atau `ReplicatedStorage`.
+2. Buat sebuah `Folder` di `Workspace` bernama `Checkpoints`.
+3. Masukkan Part checkpoint ke dalam folder tersebut dan beri nama angka secara berurutan: `1`, `2`, `3`, dst.
+
+## Contoh Pemasangan (ServerScript)
+
+Buat `Script` baru di `ServerScriptService`:
 
 ```lua
-local ObbyCheckpoint = require(game.ReplicatedStorage.ObbyCheckpoint)
-local config = require(game.ReplicatedStorage.config)
+local ServerScriptService = game:GetService("ServerScriptService")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
 
-local checkpointSystem = ObbyCheckpoint.new(config)
+local ObbyCheckpoint = require(ServerScriptService.ObbyCheckpoint)
+local checkpointsFolder = Workspace:WaitForChild("Checkpoints")
 
--- Opsional: daftarkan checkpoint baru secara manual
--- checkpointSystem:RegisterCheckpoint(part)
+-- Opsional: Load konfigurasi jika pakai JSON
+local configJSON = '{\"AntiSkip\": true, \"AutoTeleportOnSpawn\": true, \"InitialStage\": 1, \"TeleportOffsetY\": 3, \"TeleportOffsetZ\": 0}'
+local config = HttpService:JSONDecode(configJSON)
 
--- Saat server shutdown atau modul tidak diperlukan:
--- checkpointSystem:Destroy()
+-- Inisialisasi modul
+local checkpointSystem = ObbyCheckpoint.new(checkpointsFolder, config)
 ```
 
-## Pemasangan Checkpoint
+## Penjelasan Parameter (`config.json`)
 
-- Setiap part checkpoint harus memiliki attribute `Checkpoint` (boolean true) dan `CheckpointOrder` (number, urutan).
-- Contoh: Part dengan attribute `Checkpoint = true`, `CheckpointOrder = 1`.
-- Respawn akan menempatkan pemain 5 stud di atas part checkpoint terakhir.
+- `AntiSkip` (boolean): Jika `true`, pemain tidak bisa menyentuh stage 3 sebelum menyentuh stage 2.
+- `AutoTeleportOnSpawn` (boolean): Jika `true`, pemain otomatis diteleportasi ke checkpoint terakhir saat karakter spawn.
+- `InitialStage` (number): Stage awal saat pemain baru bergabung (default: 1).
+- `TeleportOffsetY` (number): Jarak Ketinggian offset saat teleportasi agar pemain tidak terperangkap di dalam Part.
+- `TeleportOffsetZ` (number): Jarak offset sumbu Z saat teleportasi.
 
-## Konfigurasi
+## Batasan & Catatan
 
-File `config.json` berisi parameter yang dapat diubah:
-
-- `checkpointTag` (string): Nama attribute penanda checkpoint. Default: `"Checkpoint"`.
-- `respawnDelay` (number): Jeda respawn setelah mati (detik). Default: `0.5`.
-- `antiSkip` (boolean): Cegah pemain melompati checkpoint. Default: `true`.
-- `spawnOnJoin` (boolean): Paksa spawn karakter saat join. Default: `true`.
-- `resetOnDeath` (boolean): Respawn ke checkpoint saat mati. Default: `true`.
-
-## Batasan
-
-- Hanya mendukung checkpoint berbasis part dengan attribute.
-- Anti-lompat mengandalkan urutan `CheckpointOrder`; pastikan unik dan berurutan.
-- Tidak menangani kasus checkpoint dihapus saat runtime (perlu panggil `RegisterCheckpoint` ulang).
-- Modul ini tidak membuat GUI atau feedback visual.
-- Respawn delay menggunakan `task.delay`; pastikan tidak ada konflik dengan sistem respawn lain.
-- Untuk performa, hindari terlalu banyak checkpoint (ratusan) karena pengecekan linear.
+1. Nama Part checkpoint **harus berupa angka valid** (`1`, `2`, `3`) agar terbaca oleh sistem.
+2. Modul ini adalah *in-memory checkpoint system*. Untuk menyimpan data permanen antar-session, integrasikan nilai `GetPlayerStage` dan `SetPlayerStage` dengan `DataStoreService` secara eksternal.

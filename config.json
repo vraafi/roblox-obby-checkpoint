@@ -1,7 +1,7 @@
 {
-  "checkpointTag": "Checkpoint",
-  "respawnDelay": 0.5,
-  "antiSkip": true,
-  "spawnOnJoin": true,
-  "resetOnDeath": true
+  "AntiSkip": true,
+  "AutoTeleportOnSpawn": true,
+  "InitialStage": 1,
+  "TeleportOffsetY": 3,
+  "TeleportOffsetZ": 0
 }

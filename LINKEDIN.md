@@ -1,1 +1,7 @@
-QC Obby Checkpoint selesai dalam 1,78 detik. Temuan: 0. Lapis kode aktif dan lulus. Rincian: py 0, js 0, json 2, lua 1, lain 4. Kami kirim sistem checkpoint Luau dengan tiga berkas: config 133 B, kode inti 5910 B, README 2200 B. Isinya checkpoint berurutan, anti-lompat, data per pemain, dan pembersihan koneksi event untuk mencegah memory leak. Kami tidak menjual janji. Setiap klaim punya angka QC di kalimat yang sama. Batasnya jelas: QC mengukur lintasan kode, bukan beban server padat. Uji lapangan tetap wajib sebelum rilis. Aturan kami sederhana: kode lulus dulu, baru dipakai. Minta repo dan jalankan QC yang sama di lingkungan Anda. #Roblox #Luau #QC
+Obby Checkpoint: Sistem checkpoint & respawn Luau untuk obby: checkpoint berurutan, anti-lompat, data per pemain, tanpa memory leak.
+
+QC: kode. 6.42 detik. 0 temuan ditutup.
+
+Kami tidak mengirim karya sebelum gerbangnya lulus. Hubungi kami kalau butuh produk seperti ini.
+
+#softwarehouse #engineering

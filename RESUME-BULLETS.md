@@ -1,1 +1,2 @@
-['Bangun Obby Checkpoint Luau dengan 3 berkas: 5910 B kode inti, 133 B config.', 'Lulus QC dalam 1,78 detik, temuan 0, lapis kode aktif dan lulus.', 'Tutup 2 temuan JSON dan 1 temuan Lua lewat validasi kode.']
+- Membangun Obby Checkpoint (roblox) dan meluluskan lapis QC kode.
+- Menutup 0 temuan QC dalam 6.42 detik.
